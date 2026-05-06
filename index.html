@@ -54,7 +54,8 @@
             object-fit: contain; 
             border-radius: 10px; 
             border: 1px solid #d1d5db; 
-            background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAMUlEQVQ4T2NkYGAQYcAP3uCTZvRVVD8aAAYGNwP5f8K8iDEBVs/YwEYzGo1mNJrRNAAAJmIsyT+E2bEAAAAASUVORK5CYII='); /* Fundo quadriculado para mostrar transparência */
+            /* Fundo quadriculado (Photoshop style) */
+            background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAMUlEQVQ4T2NkYGAQYcAP3uCTZvRVVD8aAAYGNwP5f8K8iDEBVs/YwEYzGo1mNJrRNAAAJmIsyT+E2bEAAAAASUVORK5CYII='); 
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
     </style>
@@ -71,17 +72,23 @@
     <div class="batch-preview" id="preview-area"></div>
 
     <script type="module">
-        import imglyRemoveBackground from 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.5.5/dist/browser.mjs';
-
         const statusDiv = document.getElementById('status-ia');
         const dropZone = document.getElementById('drop-zone');
         const fileInput = document.getElementById('file-input');
         const previewArea = document.getElementById('preview-area');
 
-        // Lógica de cliques e arrastar
+        // 1. LIGA A INTERFACE PRIMEIRO
+        // Isso garante que a área de arrastar/clicar funciona independentemente de bugs na internet
         dropZone.onclick = () => fileInput.click();
-        dropZone.ondragover = (e) => { e.preventDefault(); dropZone.style.background = "#dbeafe"; };
-        dropZone.ondragleave = () => dropZone.style.background = "#eff6ff";
+        
+        dropZone.ondragover = (e) => { 
+            e.preventDefault(); 
+            dropZone.style.background = "#dbeafe"; 
+        };
+        
+        dropZone.ondragleave = () => { 
+            dropZone.style.background = "#eff6ff"; 
+        };
         
         dropZone.ondrop = (e) => {
             e.preventDefault();
@@ -93,41 +100,48 @@
 
         function handleFiles(files) {
             for (let file of files) {
-                // Filtro de segurança: só aceita arquivos de imagem
                 if (!file.type.startsWith('image/')) {
                     alert("Por favor, envie apenas arquivos de imagem.");
                     continue;
                 }
 
-                // Cria o elemento da imagem na tela
                 const img = document.createElement('img');
                 img.src = URL.createObjectURL(file);
                 img.className = 'thumb';
-                img.style.opacity = "0.3"; // Fica opaco enquanto carrega
+                img.style.opacity = "0.3"; 
                 previewArea.appendChild(img);
 
-                // Manda para a IA
+                // Dispara a Inteligência Artificial de forma segura
                 processarImagem(file, img);
             }
         }
 
+        // 2. CHAMA O MOTOR DA IA DINAMICAMENTE
         async function processarImagem(arquivoImagem, imgElemento) {
             try {
-                statusDiv.innerText = "⏳ IA: Baixando modelo e removendo fundo (Isso pode levar de 1 a 2 minutos na primeira vez)...";
+                statusDiv.innerText = "⏳ Conectando à Inteligência Artificial (Aguarde)...";
+                statusDiv.style.backgroundColor = "#e0e7ff";
+                statusDiv.style.color = "#3730a3";
+
+                // Importamos o código apenas agora, usando a versão ESM (+esm)
+                const modulo = await import('https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.5.5/+esm');
+                
+                // Resolve a exportação da biblioteca independentemente do bundler
+                const imglyRemoveBackground = modulo.default || modulo.removeBackground;
+
+                statusDiv.innerText = "⏳ IA: Baixando modelo e removendo fundo...";
                 statusDiv.style.backgroundColor = "#fef3c7";
                 statusDiv.style.color = "#92400e";
 
-                // CONFIGURAÇÃO CRUCIAL: Diz para a biblioteca buscar os arquivos pesados no servidor dela, e não no seu GitHub
                 const config = {
                     publicPath: "https://static.imgly.com/@imgly/background-removal/1.5.5/dist/"
                 };
 
                 const imageBlob = await imglyRemoveBackground(arquivoImagem, config);
                 
-                // Pega o resultado transparente e atualiza a imagem na tela
                 const urlSemFundo = URL.createObjectURL(imageBlob);
                 imgElemento.src = urlSemFundo;
-                imgElemento.style.opacity = "1"; // Volta ao normal
+                imgElemento.style.opacity = "1"; 
                 
                 statusDiv.innerText = "✅ IA: Fundo removido com sucesso!";
                 statusDiv.style.backgroundColor = "#d1fae5";
@@ -135,7 +149,7 @@
 
             } catch (erro) {
                 console.error("Erro capturado:", erro);
-                statusDiv.innerText = "❌ Erro ao processar a imagem. Tente novamente.";
+                statusDiv.innerText = "❌ Erro ao baixar modelo da IA. Atualize a página.";
                 statusDiv.style.backgroundColor = "#fee2e2";
                 statusDiv.style.color = "#991b1b";
                 imgElemento.style.opacity = "1";
