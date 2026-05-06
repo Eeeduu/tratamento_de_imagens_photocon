@@ -43,7 +43,7 @@
         let filesQueue = [];
         
         // Conectando com o nosso Worker
-        const worker = new Worker('worker.js', { type: 'module' });
+        const worker = new Worker('worker.js?v=' + Date.now(), { type: 'module' });
 
         // Escutando as respostas do Worker
         worker.onmessage = (event) => {
