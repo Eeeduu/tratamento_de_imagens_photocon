@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>AI Image Lab</title>
+    <script src="https://cdn.jsdelivr.net/npm/fabric"></script>
+    <style>
+        /* Estilo para a zona de arrastar imagens */
+        #drop-zone {
+            width: 100%;
+            height: 200px;
+            border: 3px dashed #4A90E2;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f0f7ff;
+            cursor: pointer;
+        }
+        .batch-preview { display: flex; gap: 10px; margin-top: 20px; overflow-x: auto; }
+        .thumb { width: 100px; height: 100px; object-fit: cover; border-radius: 8px; }
+    </style>
+</head>
+<body>
+
+    <h1>AI Image Editor (Lote & IA)</h1>
+
+    <div id="drop-zone">Arraste suas imagens aqui ou clique para selecionar</div>
+    <input type="file" id="file-input" multiple hidden>
+
+    <div class="batch-preview" id="preview-area"></div>
+
+    <div class="controls">
+        <button onclick="removeBackgroundBatch()">Remover Fundo (Lote)</button>
+        <button onclick="addWatermark()">Adicionar Texto</button>
+    </div>
+
+    <canvas id="main-editor"></canvas>
+
+    <script type="module">
+        // Importando a biblioteca de IA
+        import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers';
+
+        // Configuração para rodar localmente no browser
+        env.allowLocalModels = false;
+
+        let filesQueue = [];
+
+        // Lógica de Drag and Drop
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+
+        dropZone.onclick = () => fileInput.click();
+
+        dropZone.ondragover = (e) => { e.preventDefault(); dropZone.style.background = "#e0eefe"; };
+        dropZone.ondragleave = () => dropZone.style.background = "#f0f7ff";
+
+        dropZone.ondrop = (e) => {
+            e.preventDefault();
+            handleFiles(e.dataTransfer.files);
+        };
+
+        fileInput.onchange = (e) => handleFiles(e.target.files);
+
+        function handleFiles(files) {
+            for (let file of files) {
+                filesQueue.push(file);
+                const img = document.createElement('img');
+                img.src = URL.createObjectURL(file);
+                img.className = 'thumb';
+                document.getElementById('preview-area').appendChild(img);
+            }
+        }
+
+        // Função de exemplo para IA (Remoção de Fundo)
+        async function removeBackground(imageElement) {
+            // Aqui carregaríamos o modelo 'RMBG-1.4'
+            // O processamento seria feito via WebWorker para não travar a tela
+            console.log("Iniciando remoção de fundo via Transformers.js...");
+        }
+    </script>
+</body>
+</html>
