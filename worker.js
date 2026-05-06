@@ -1,9 +1,8 @@
 // worker.js
-// Atualizado para a versão 3 oficial da Hugging Face
 import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers';
 
 env.allowLocalModels = false;
-let segmentador = null;
+let removedorFundo = null;
 
 self.addEventListener('message', async (event) => {
     const dados = event.data;
@@ -13,8 +12,8 @@ self.addEventListener('message', async (event) => {
         self.postMessage({ status: 'iniciando' });
         
         try {
-            // Usando a versão otimizada (ONNX) do modelo para não travar o navegador
-            segmentador = await pipeline('image-segmentation', 'Xenova/bria-rmbg-1.4', {
+            // Usamos o pipeline exclusivo para remoção de fundo (novo na v3)
+            removedorFundo = await pipeline('image-background-removal', 'briaai/RMBG-1.4', {
                 progress_callback: (progresso) => {
                     self.postMessage({ status: 'baixando', progresso: progresso });
                 }
@@ -27,31 +26,25 @@ self.addEventListener('message', async (event) => {
 
     // 2. Comando para processar a imagem
     if (dados.acao === 'processar') {
-        if (!segmentador) return;
+        if (!removedorFundo) return;
         
         self.postMessage({ status: 'processando' });
         
         try {
-            // A IA analisa a imagem
-            const resultado = await segmentador(dados.imagemUrl);
+            // A IA remove o fundo e devolve a imagem com transparência
+            const resultado = await removedorFundo(dados.imagemUrl);
             
-            // Modelos de segmentação na V3 geralmente retornam um array.
-            // Pegamos a máscara que contém a imagem já cortada.
-            const imagemProcessada = Array.isArray(resultado) ? resultado[0].mask : resultado;
-            
-            // Transformamos os dados brutos da IA em uma imagem PNG usando OffscreenCanvas
-            const canvas = new OffscreenCanvas(imagemProcessada.width, imagemProcessada.height);
+            // Converte os pixels para uma imagem PNG real
+            const canvas = new OffscreenCanvas(resultado.width, resultado.height);
             const ctx = canvas.getContext('2d');
             
-            // Converte os pixels para um formato que o Canvas entenda
             const imgData = new ImageData(
-                new Uint8ClampedArray(imagemProcessada.data), 
-                imagemProcessada.width, 
-                imagemProcessada.height
+                new Uint8ClampedArray(resultado.data), 
+                resultado.width, 
+                resultado.height
             );
             ctx.putImageData(imgData, 0, 0);
             
-            // Gera o arquivo final da imagem transparente
             const blob = await canvas.convertToBlob({ type: 'image/png' });
             
             self.postMessage({ status: 'concluido', resultadoBlob: blob });
