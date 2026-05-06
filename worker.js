@@ -2,7 +2,7 @@
 import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers';
 
 env.allowLocalModels = false;
-let removedorFundo = null;
+let segmentador = null;
 
 self.addEventListener('message', async (event) => {
     const dados = event.data;
@@ -12,8 +12,8 @@ self.addEventListener('message', async (event) => {
         self.postMessage({ status: 'iniciando' });
         
         try {
-            // Usamos o pipeline exclusivo para remoção de fundo (novo na v3)
-            removedorFundo = await pipeline('background-removal', 'briaai/RMBG-1.4', {
+            // Combinação correta: Gaveta de Segmentação + Modelo RMBG
+            segmentador = await pipeline('image-segmentation', 'Xenova/bria-rmbg-1.4', {
                 progress_callback: (progresso) => {
                     self.postMessage({ status: 'baixando', progresso: progresso });
                 }
@@ -26,22 +26,26 @@ self.addEventListener('message', async (event) => {
 
     // 2. Comando para processar a imagem
     if (dados.acao === 'processar') {
-        if (!removedorFundo) return;
+        if (!segmentador) return;
         
         self.postMessage({ status: 'processando' });
         
         try {
-            // A IA remove o fundo e devolve a imagem com transparência
-            const resultado = await removedorFundo(dados.imagemUrl);
+            const resultado = await segmentador(dados.imagemUrl);
             
-            // Converte os pixels para uma imagem PNG real
-            const canvas = new OffscreenCanvas(resultado.width, resultado.height);
+            // Código blindado: a IA pode devolver um Array ou um Objeto direto dependendo da imagem.
+            // Aqui nós garantimos que vamos pegar os pixels da imagem recortada ("mask")
+            const item = Array.isArray(resultado) ? resultado[0] : resultado;
+            const imagemProcessada = item.mask || item;
+            
+            // Convertendo os dados brutos para uma imagem PNG transparente
+            const canvas = new OffscreenCanvas(imagemProcessada.width, imagemProcessada.height);
             const ctx = canvas.getContext('2d');
             
             const imgData = new ImageData(
-                new Uint8ClampedArray(resultado.data), 
-                resultado.width, 
-                resultado.height
+                new Uint8ClampedArray(imagemProcessada.data), 
+                imagemProcessada.width, 
+                imagemProcessada.height
             );
             ctx.putImageData(imgData, 0, 0);
             
