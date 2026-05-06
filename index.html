@@ -36,55 +36,16 @@
 
     <canvas id="main-editor"></canvas>
 
-   <div id="status-ia" style="margin-top: 10px; font-weight: bold; color: #d9534f;">IA: Aguardando carregamento...</div>
+  <div id="status-ia" style="margin-top: 10px; font-weight: bold; color: #4A90E2;">Aguardando imagens...</div>
 
-    <script>
+    <script type="module">
+        // Importamos a ferramenta específica de remoção de fundo (gratuita e sem bloqueios)
+        import imglyRemoveBackground from 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.5.5/dist/browser.mjs';
+
         const statusDiv = document.getElementById('status-ia');
         let filesQueue = [];
-        
-        // Conectando com o nosso Worker
-        const worker = new Worker('worker.js?v=' + Date.now(), { type: 'module' });
 
-        // Escutando as respostas do Worker
-        worker.onmessage = (event) => {
-            const mensagem = event.data;
-
-            if (mensagem.status === 'iniciando') {
-                statusDiv.innerText = "Iniciando IA...";
-            } 
-            else if (mensagem.status === 'baixando') {
-                // Mostra o progresso do download do modelo (aprox. 170MB, só acontece na primeira vez)
-                if (mensagem.progresso.progress) {
-                    statusDiv.innerText = `Baixando modelo: ${Math.round(mensagem.progresso.progress)}%`;
-                }
-            } 
-            else if (mensagem.status === 'pronto') {
-                statusDiv.innerText = "IA Pronta! Pode enviar as imagens.";
-                statusDiv.style.color = "#5cb85c";
-            }
-            else if (mensagem.status === 'processando') {
-                statusDiv.innerText = "Removendo fundo (isso pode levar alguns segundos)...";
-                statusDiv.style.color = "#f0ad4e";
-            }
-            else if (mensagem.status === 'concluido') {
-                statusDiv.innerText = "Fundo removido com sucesso!";
-                statusDiv.style.color = "#5cb85c";
-                
-                // Pega a imagem sem fundo e joga na tela
-                const imgSemFundo = document.createElement('img');
-                imgSemFundo.src = URL.createObjectURL(mensagem.resultadoBlob);
-                imgSemFundo.className = 'thumb';
-                document.getElementById('preview-area').appendChild(imgSemFundo);
-            }
-            else if (mensagem.status === 'erro') {
-                statusDiv.innerText = "Erro: " + mensagem.mensagem;
-            }
-        };
-
-        // Manda o worker começar a baixar/carregar o modelo de IA assim que a página abre
-        worker.postMessage({ acao: 'carregar' });
-
-        // Lógica de Drag and Drop (mantida igual)
+        // Lógica de Drag and Drop
         const dropZone = document.getElementById('drop-zone');
         const fileInput = document.getElementById('file-input');
 
@@ -93,23 +54,46 @@
         dropZone.ondragleave = () => dropZone.style.background = "#f0f7ff";
         dropZone.ondrop = (e) => {
             e.preventDefault();
+            dropZone.style.background = "#f0f7ff";
             handleFiles(e.dataTransfer.files);
         };
         fileInput.onchange = (e) => handleFiles(e.target.files);
 
-        // Quando o usuário escolhe a imagem, mostramos e enviamos para a IA
         function handleFiles(files) {
             for (let file of files) {
-                // Lendo a imagem original para enviar pro Worker
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    // Manda a imagem base64 pro Worker tirar o fundo
-                    worker.postMessage({ 
-                        acao: 'processar', 
-                        imagemUrl: e.target.result 
-                    });
-                }
-                reader.readAsDataURL(file);
+                // Mostra a miniatura da imagem original na tela
+                const img = document.createElement('img');
+                img.src = URL.createObjectURL(file);
+                img.className = 'thumb';
+                img.style.opacity = "0.5"; // Deixa meio transparente para indicar que está processando
+                document.getElementById('preview-area').appendChild(img);
+
+                // Envia para a IA processar
+                processarImagem(file, img);
+            }
+        }
+
+        async function processarImagem(arquivoImagem, imgElemento) {
+            try {
+                statusDiv.innerText = "IA: Baixando modelo e removendo fundo (Aguarde...)";
+                statusDiv.style.color = "#f0ad4e";
+
+                // A mágica acontece aqui! A biblioteca lida com o modelo e os workers sozinha.
+                // Na primeira vez, ela baixa o modelo (aprox. 40MB). Nas próximas, é instantâneo.
+                const imageBlob = await imglyRemoveBackground(arquivoImagem);
+                
+                // Pega o resultado sem fundo e substitui a imagem original na tela
+                const urlSemFundo = URL.createObjectURL(imageBlob);
+                imgElemento.src = urlSemFundo;
+                imgElemento.style.opacity = "1"; // Volta a opacidade ao normal
+
+                statusDiv.innerText = "IA: Fundo removido com sucesso!";
+                statusDiv.style.color = "#5cb85c";
+
+            } catch (erro) {
+                console.error(erro);
+                statusDiv.innerText = "Erro ao processar: " + erro.message;
+                statusDiv.style.color = "#d9534f";
             }
         }
     </script>
