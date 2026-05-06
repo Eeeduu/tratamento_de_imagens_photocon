@@ -3,9 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <title>AI Image Lab</title>
-    <script src="https://cdn.jsdelivr.net/npm/fabric"></script>
     <style>
-        /* Estilo para a zona de arrastar imagens */
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            padding: 20px; 
+            max-width: 800px; 
+            margin: auto; 
+            background-color: #f9fafb;
+        }
+        h1 { color: #333; text-align: center; }
+        
         #drop-zone {
             width: 100%;
             height: 200px;
@@ -13,87 +20,125 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            background: #f0f7ff;
+            background: #eff6ff;
             cursor: pointer;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            color: #4A90E2;
+            font-weight: bold;
+            transition: all 0.3s ease;
         }
-        .batch-preview { display: flex; gap: 10px; margin-top: 20px; overflow-x: auto; }
-        .thumb { width: 100px; height: 100px; object-fit: cover; border-radius: 8px; }
+        #drop-zone:hover { background: #dbeafe; }
+        
+        #status-ia { 
+            text-align: center;
+            margin-top: 10px; 
+            font-weight: bold; 
+            padding: 15px; 
+            border-radius: 8px;
+            background: #e0e7ff;
+            color: #3730a3;
+        }
+        
+        .batch-preview { 
+            display: flex; 
+            gap: 15px; 
+            margin-top: 20px; 
+            flex-wrap: wrap; 
+            justify-content: center;
+        }
+        
+        .thumb { 
+            width: 200px; 
+            height: 200px; 
+            object-fit: contain; 
+            border-radius: 10px; 
+            border: 1px solid #d1d5db; 
+            background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAMUlEQVQ4T2NkYGAQYcAP3uCTZvRVVD8aAAYGNwP5f8K8iDEBVs/YwEYzGo1mNJrRNAAAJmIsyT+E2bEAAAAASUVORK5CYII='); /* Fundo quadriculado para mostrar transparência */
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
     </style>
 </head>
 <body>
 
-    <h1>AI Image Editor (Lote & IA)</h1>
+    <h1>Editor de Imagens IA</h1>
 
-    <div id="drop-zone">Arraste suas imagens aqui ou clique para selecionar</div>
-    <input type="file" id="file-input" multiple hidden>
+    <div id="drop-zone">📂 Arraste suas imagens aqui ou clique para selecionar</div>
+    <input type="file" id="file-input" multiple hidden accept="image/*">
+
+    <div id="status-ia">Aguardando imagens...</div>
 
     <div class="batch-preview" id="preview-area"></div>
 
-    <div class="controls">
-        <button onclick="removeBackgroundBatch()">Remover Fundo (Lote)</button>
-        <button onclick="addWatermark()">Adicionar Texto</button>
-    </div>
-
-    <canvas id="main-editor"></canvas>
-
-  <div id="status-ia" style="margin-top: 10px; font-weight: bold; color: #4A90E2;">Aguardando imagens...</div>
-
     <script type="module">
-        // Importamos a ferramenta específica de remoção de fundo (gratuita e sem bloqueios)
         import imglyRemoveBackground from 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.5.5/dist/browser.mjs';
 
         const statusDiv = document.getElementById('status-ia');
-        let filesQueue = [];
-
-        // Lógica de Drag and Drop
         const dropZone = document.getElementById('drop-zone');
         const fileInput = document.getElementById('file-input');
+        const previewArea = document.getElementById('preview-area');
 
+        // Lógica de cliques e arrastar
         dropZone.onclick = () => fileInput.click();
-        dropZone.ondragover = (e) => { e.preventDefault(); dropZone.style.background = "#e0eefe"; };
-        dropZone.ondragleave = () => dropZone.style.background = "#f0f7ff";
+        dropZone.ondragover = (e) => { e.preventDefault(); dropZone.style.background = "#dbeafe"; };
+        dropZone.ondragleave = () => dropZone.style.background = "#eff6ff";
+        
         dropZone.ondrop = (e) => {
             e.preventDefault();
-            dropZone.style.background = "#f0f7ff";
+            dropZone.style.background = "#eff6ff";
             handleFiles(e.dataTransfer.files);
         };
+        
         fileInput.onchange = (e) => handleFiles(e.target.files);
 
         function handleFiles(files) {
             for (let file of files) {
-                // Mostra a miniatura da imagem original na tela
+                // Filtro de segurança: só aceita arquivos de imagem
+                if (!file.type.startsWith('image/')) {
+                    alert("Por favor, envie apenas arquivos de imagem.");
+                    continue;
+                }
+
+                // Cria o elemento da imagem na tela
                 const img = document.createElement('img');
                 img.src = URL.createObjectURL(file);
                 img.className = 'thumb';
-                img.style.opacity = "0.5"; // Deixa meio transparente para indicar que está processando
-                document.getElementById('preview-area').appendChild(img);
+                img.style.opacity = "0.3"; // Fica opaco enquanto carrega
+                previewArea.appendChild(img);
 
-                // Envia para a IA processar
+                // Manda para a IA
                 processarImagem(file, img);
             }
         }
 
         async function processarImagem(arquivoImagem, imgElemento) {
             try {
-                statusDiv.innerText = "IA: Baixando modelo e removendo fundo (Aguarde...)";
-                statusDiv.style.color = "#f0ad4e";
+                statusDiv.innerText = "⏳ IA: Baixando modelo e removendo fundo (Isso pode levar de 1 a 2 minutos na primeira vez)...";
+                statusDiv.style.backgroundColor = "#fef3c7";
+                statusDiv.style.color = "#92400e";
 
-                // A mágica acontece aqui! A biblioteca lida com o modelo e os workers sozinha.
-                // Na primeira vez, ela baixa o modelo (aprox. 40MB). Nas próximas, é instantâneo.
-                const imageBlob = await imglyRemoveBackground(arquivoImagem);
+                // CONFIGURAÇÃO CRUCIAL: Diz para a biblioteca buscar os arquivos pesados no servidor dela, e não no seu GitHub
+                const config = {
+                    publicPath: "https://static.imgly.com/@imgly/background-removal/1.5.5/dist/"
+                };
+
+                const imageBlob = await imglyRemoveBackground(arquivoImagem, config);
                 
-                // Pega o resultado sem fundo e substitui a imagem original na tela
+                // Pega o resultado transparente e atualiza a imagem na tela
                 const urlSemFundo = URL.createObjectURL(imageBlob);
                 imgElemento.src = urlSemFundo;
-                imgElemento.style.opacity = "1"; // Volta a opacidade ao normal
-
-                statusDiv.innerText = "IA: Fundo removido com sucesso!";
-                statusDiv.style.color = "#5cb85c";
+                imgElemento.style.opacity = "1"; // Volta ao normal
+                
+                statusDiv.innerText = "✅ IA: Fundo removido com sucesso!";
+                statusDiv.style.backgroundColor = "#d1fae5";
+                statusDiv.style.color = "#065f46";
 
             } catch (erro) {
-                console.error(erro);
-                statusDiv.innerText = "Erro ao processar: " + erro.message;
-                statusDiv.style.color = "#d9534f";
+                console.error("Erro capturado:", erro);
+                statusDiv.innerText = "❌ Erro ao processar a imagem. Tente novamente.";
+                statusDiv.style.backgroundColor = "#fee2e2";
+                statusDiv.style.color = "#991b1b";
+                imgElemento.style.opacity = "1";
             }
         }
     </script>
