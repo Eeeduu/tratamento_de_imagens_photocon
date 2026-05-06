@@ -13,7 +13,7 @@ self.addEventListener('message', async (event) => {
         
         try {
             // Usamos o pipeline exclusivo para remoção de fundo (novo na v3)
-            removedorFundo = await pipeline('image-background-removal', 'briaai/RMBG-1.4', {
+            removedorFundo = await pipeline('background-removal', 'briaai/RMBG-1.4', {
                 progress_callback: (progresso) => {
                     self.postMessage({ status: 'baixando', progresso: progresso });
                 }
