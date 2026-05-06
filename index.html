@@ -36,46 +36,81 @@
 
     <canvas id="main-editor"></canvas>
 
-    <script type="module">
-        // Importando a biblioteca de IA
-        import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers';
+   <div id="status-ia" style="margin-top: 10px; font-weight: bold; color: #d9534f;">IA: Aguardando carregamento...</div>
 
-        // Configuração para rodar localmente no browser
-        env.allowLocalModels = false;
-
+    <script>
+        const statusDiv = document.getElementById('status-ia');
         let filesQueue = [];
+        
+        // Conectando com o nosso Worker
+        const worker = new Worker('worker.js', { type: 'module' });
 
-        // Lógica de Drag and Drop
+        // Escutando as respostas do Worker
+        worker.onmessage = (event) => {
+            const mensagem = event.data;
+
+            if (mensagem.status === 'iniciando') {
+                statusDiv.innerText = "Iniciando IA...";
+            } 
+            else if (mensagem.status === 'baixando') {
+                // Mostra o progresso do download do modelo (aprox. 170MB, só acontece na primeira vez)
+                if (mensagem.progresso.progress) {
+                    statusDiv.innerText = `Baixando modelo: ${Math.round(mensagem.progresso.progress)}%`;
+                }
+            } 
+            else if (mensagem.status === 'pronto') {
+                statusDiv.innerText = "IA Pronta! Pode enviar as imagens.";
+                statusDiv.style.color = "#5cb85c";
+            }
+            else if (mensagem.status === 'processando') {
+                statusDiv.innerText = "Removendo fundo (isso pode levar alguns segundos)...";
+                statusDiv.style.color = "#f0ad4e";
+            }
+            else if (mensagem.status === 'concluido') {
+                statusDiv.innerText = "Fundo removido com sucesso!";
+                statusDiv.style.color = "#5cb85c";
+                
+                // Pega a imagem sem fundo e joga na tela
+                const imgSemFundo = document.createElement('img');
+                imgSemFundo.src = URL.createObjectURL(mensagem.resultadoBlob);
+                imgSemFundo.className = 'thumb';
+                document.getElementById('preview-area').appendChild(imgSemFundo);
+            }
+            else if (mensagem.status === 'erro') {
+                statusDiv.innerText = "Erro: " + mensagem.mensagem;
+            }
+        };
+
+        // Manda o worker começar a baixar/carregar o modelo de IA assim que a página abre
+        worker.postMessage({ acao: 'carregar' });
+
+        // Lógica de Drag and Drop (mantida igual)
         const dropZone = document.getElementById('drop-zone');
         const fileInput = document.getElementById('file-input');
 
         dropZone.onclick = () => fileInput.click();
-
         dropZone.ondragover = (e) => { e.preventDefault(); dropZone.style.background = "#e0eefe"; };
         dropZone.ondragleave = () => dropZone.style.background = "#f0f7ff";
-
         dropZone.ondrop = (e) => {
             e.preventDefault();
             handleFiles(e.dataTransfer.files);
         };
-
         fileInput.onchange = (e) => handleFiles(e.target.files);
 
+        // Quando o usuário escolhe a imagem, mostramos e enviamos para a IA
         function handleFiles(files) {
             for (let file of files) {
-                filesQueue.push(file);
-                const img = document.createElement('img');
-                img.src = URL.createObjectURL(file);
-                img.className = 'thumb';
-                document.getElementById('preview-area').appendChild(img);
+                // Lendo a imagem original para enviar pro Worker
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    // Manda a imagem base64 pro Worker tirar o fundo
+                    worker.postMessage({ 
+                        acao: 'processar', 
+                        imagemUrl: e.target.result 
+                    });
+                }
+                reader.readAsDataURL(file);
             }
-        }
-
-        // Função de exemplo para IA (Remoção de Fundo)
-        async function removeBackground(imageElement) {
-            // Aqui carregaríamos o modelo 'RMBG-1.4'
-            // O processamento seria feito via WebWorker para não travar a tela
-            console.log("Iniciando remoção de fundo via Transformers.js...");
         }
     </script>
 </body>
