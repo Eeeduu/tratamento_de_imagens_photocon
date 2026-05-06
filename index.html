@@ -3,9 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <title>AI Image Lab</title>
-    
-    <script src="https://unpkg.com/@imgly/background-removal@1.5.5/dist/browser.js"></script>
-    
     <style>
         body { 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
@@ -73,30 +70,17 @@
 
     <div class="batch-preview" id="preview-area"></div>
 
-    <script>
+    <script type="module">
         const statusDiv = document.getElementById('status-ia');
         const dropZone = document.getElementById('drop-zone');
         const fileInput = document.getElementById('file-input');
         const previewArea = document.getElementById('preview-area');
 
-        // Lógica da Interface
+        // Lógica de Interface Imediata
         dropZone.onclick = () => fileInput.click();
-        
-        dropZone.ondragover = (e) => { 
-            e.preventDefault(); 
-            dropZone.style.background = "#dbeafe"; 
-        };
-        
-        dropZone.ondragleave = () => { 
-            dropZone.style.background = "#eff6ff"; 
-        };
-        
-        dropZone.ondrop = (e) => {
-            e.preventDefault();
-            dropZone.style.background = "#eff6ff";
-            handleFiles(e.dataTransfer.files);
-        };
-        
+        dropZone.ondragover = (e) => { e.preventDefault(); dropZone.style.background = "#dbeafe"; };
+        dropZone.ondragleave = () => { dropZone.style.background = "#eff6ff"; };
+        dropZone.ondrop = (e) => { e.preventDefault(); dropZone.style.background = "#eff6ff"; handleFiles(e.dataTransfer.files); };
         fileInput.onchange = (e) => handleFiles(e.target.files);
 
         function handleFiles(files) {
@@ -115,17 +99,20 @@
 
         async function processarImagem(arquivoImagem, imgElemento) {
             try {
-                statusDiv.innerText = "⏳ IA: Baixando modelo e removendo fundo (Isso pode levar de 1 a 2 minutos na primeira vez)...";
+                statusDiv.innerText = "⏳ IA: Baixando modelo (Isso pode levar de 1 a 2 minutos na primeira vez)...";
                 statusDiv.style.backgroundColor = "#fef3c7";
                 statusDiv.style.color = "#92400e";
 
-                // Caminho CORRETO e liberado para baixar o modelo da IA
+                // 1. Conecta com a biblioteca principal via JSDelivr (Link Corrigido)
+                const modulo = await import('https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.5.5/dist/browser.mjs');
+                const removeBackground = modulo.default;
+
+                // 2. Aponta para o servidor certo para baixar os arquivos da IA (Link Corrigido)
                 const config = {
-                    publicPath: "https://unpkg.com/@imgly/background-removal@1.5.5/dist/"
+                    publicPath: "https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.5.5/dist/"
                 };
 
-                // Como a biblioteca foi importada no <head>, a função "imglyRemoveBackground" já existe no site
-                const imageBlob = await imglyRemoveBackground(arquivoImagem, config);
+                const imageBlob = await removeBackground(arquivoImagem, config);
                 
                 const urlSemFundo = URL.createObjectURL(imageBlob);
                 imgElemento.src = urlSemFundo;
@@ -136,8 +123,8 @@
                 statusDiv.style.color = "#065f46";
 
             } catch (erro) {
-                console.error("Erro capturado:", erro);
-                statusDiv.innerText = "❌ Erro ao baixar modelo da IA. Atualize a página.";
+                console.error("Erro detalhado no Console:", erro);
+                statusDiv.innerText = "❌ Falha no processamento. Tente uma imagem diferente.";
                 statusDiv.style.backgroundColor = "#fee2e2";
                 statusDiv.style.color = "#991b1b";
                 imgElemento.style.opacity = "1";
