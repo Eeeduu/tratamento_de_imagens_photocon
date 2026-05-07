@@ -130,7 +130,7 @@ def remover_fundo():
         print(f"[ERRO] {e}")
         return {"erro": str(e)}, 500
 
-@app.route("/baixar-zip")
+@app.route("/baixar_zip")
 def baixar_zip():
     """Compacta a pasta de output e envia o ZIP."""
     arquivos = [f for f in os.listdir(PASTA_OUTPUT) if f.endswith('.png')]
