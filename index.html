@@ -1,18 +1,23 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
     <meta charset="UTF-8">
     <title>AI Image Lab</title>
     <style>
-        body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            padding: 20px; 
-            max-width: 800px; 
-            margin: auto; 
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 20px;
+            max-width: 800px;
+            margin: auto;
             background-color: #f9fafb;
         }
-        h1 { color: #333; text-align: center; }
-        
+
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+
         #drop-zone {
             width: 100%;
             height: 200px;
@@ -28,37 +33,41 @@
             font-weight: bold;
             transition: all 0.3s ease;
         }
-        #drop-zone:hover { background: #dbeafe; }
-        
-        #status-ia { 
+
+        #drop-zone:hover {
+            background: #dbeafe;
+        }
+
+        #status-ia {
             text-align: center;
-            margin-top: 10px; 
-            font-weight: bold; 
-            padding: 15px; 
+            margin-top: 10px;
+            font-weight: bold;
+            padding: 15px;
             border-radius: 8px;
             background: #e0e7ff;
             color: #3730a3;
         }
-        
-        .batch-preview { 
-            display: flex; 
-            gap: 15px; 
-            margin-top: 20px; 
-            flex-wrap: wrap; 
+
+        .batch-preview {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+            flex-wrap: wrap;
             justify-content: center;
         }
-        
-        .thumb { 
-            width: 200px; 
-            height: 200px; 
-            object-fit: contain; 
-            border-radius: 10px; 
-            border: 1px solid #d1d5db; 
-            background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAMUlEQVQ4T2NkYGAQYcAP3uCTZvRVVD8aAAYGNwP5f8K8iDEBVs/YwEYzGo1mNJrRNAAAJmIsyT+E2bEAAAAASUVORK5CYII='); 
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+
+        .thumb {
+            width: 200px;
+            height: 200px;
+            object-fit: contain;
+            border-radius: 10px;
+            border: 1px solid #d1d5db;
+            background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAMUlEQVQ4T2NkYGAQYcAP3uCTZvRVVD8aAAYGNwP5f8K8iDEBVs/YwEYzGo1mNJrRNAAAJmIsyT+E2bEAAAAASUVORK5CYII=');
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
     </style>
 </head>
+
 <body>
 
     <h1>Editor de Imagens IA</h1>
@@ -90,7 +99,7 @@
                 const img = document.createElement('img');
                 img.src = URL.createObjectURL(file);
                 img.className = 'thumb';
-                img.style.opacity = "0.3"; 
+                img.style.opacity = "0.3";
                 previewArea.appendChild(img);
 
                 processarImagem(file, img);
@@ -98,32 +107,52 @@
         }
 
         async function processarImagem(arquivoImagem, imgElemento) {
+            // Verificação de contexto seguro (Localhost ou HTTPS)
+            if (!window.isSecureContext) {
+                console.warn("Ambiente não seguro detectado.");
+                statusDiv.innerText = "❌ Erro: O navegador bloqueia a IA em arquivos locais. Use o 'Live Server' ou rode via Localhost.";
+                statusDiv.style.backgroundColor = "#fee2e2";
+                statusDiv.style.color = "#991b1b";
+                imgElemento.style.opacity = "1";
+                return;
+            }
+
             try {
                 statusDiv.innerText = "⏳ IA: Baixando modelo (Isso pode levar de 1 a 2 minutos na primeira vez)...";
                 statusDiv.style.backgroundColor = "#fef3c7";
                 statusDiv.style.color = "#92400e";
 
-                const modulo = await import('https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.5.5/dist/browser.mjs');
+                const modulo = await import('https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/dist/browser.mjs');
                 const removeBackground = modulo.default;
 
-                // CORREÇÃO: O servidor correto contendo o "-data" no link
+                // Forçando o uso do UNPKG que foi verificado como online
                 const config = {
-                    publicPath: "https://static.imgly.com/@imgly/background-removal-data/1.5.5/dist/"
+                    publicPath: "https://unpkg.com/@imgly/background-removal-data/dist/"
                 };
 
                 const imageBlob = await removeBackground(arquivoImagem, config);
-                
+
                 const urlSemFundo = URL.createObjectURL(imageBlob);
                 imgElemento.src = urlSemFundo;
-                imgElemento.style.opacity = "1"; 
-                
+                imgElemento.style.opacity = "1";
+
                 statusDiv.innerText = "✅ IA: Fundo removido com sucesso!";
                 statusDiv.style.backgroundColor = "#d1fae5";
                 statusDiv.style.color = "#065f46";
 
             } catch (erro) {
                 console.error("Erro detalhado no Console:", erro);
-                statusDiv.innerText = "❌ Falha no processamento. Tente uma imagem diferente.";
+                
+                let msgErro = "❌ Falha no processamento.";
+                if (erro.message) {
+                    if (erro.message.includes("fetch")) {
+                        msgErro = "❌ Erro de conexão: O servidor de modelos está inacessível. Tente usar uma VPN ou verifique seu firewall.";
+                    } else {
+                        msgErro = `❌ Erro: ${erro.message}`;
+                    }
+                }
+                
+                statusDiv.innerText = msgErro + " (Detalhe: " + erro.toString() + ")";
                 statusDiv.style.backgroundColor = "#fee2e2";
                 statusDiv.style.color = "#991b1b";
                 imgElemento.style.opacity = "1";
@@ -131,4 +160,5 @@
         }
     </script>
 </body>
+
 </html>
