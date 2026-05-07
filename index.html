@@ -76,7 +76,7 @@
         const fileInput = document.getElementById('file-input');
         const previewArea = document.getElementById('preview-area');
 
-        // Lógica de Interface Imediata
+        // Lógica de Interface
         dropZone.onclick = () => fileInput.click();
         dropZone.ondragover = (e) => { e.preventDefault(); dropZone.style.background = "#dbeafe"; };
         dropZone.ondragleave = () => { dropZone.style.background = "#eff6ff"; };
@@ -103,13 +103,12 @@
                 statusDiv.style.backgroundColor = "#fef3c7";
                 statusDiv.style.color = "#92400e";
 
-                // 1. Conecta com a biblioteca principal via JSDelivr (Link Corrigido)
                 const modulo = await import('https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.5.5/dist/browser.mjs');
                 const removeBackground = modulo.default;
 
-                // 2. Aponta para o servidor certo para baixar os arquivos da IA (Link Corrigido)
+                // CORREÇÃO: O servidor correto contendo o "-data" no link
                 const config = {
-                    publicPath: "https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.5.5/dist/"
+                    publicPath: "https://static.imgly.com/@imgly/background-removal-data/1.5.5/dist/"
                 };
 
                 const imageBlob = await removeBackground(arquivoImagem, config);
