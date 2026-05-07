@@ -71,43 +71,69 @@ def detectar_fundo_branco(img_rgb, limiar=230, min_pontos=5):
     return brancos >= min_pontos
 
 
-def remover_fundo_branco(img_pil, limiar=240, suavidade=3):
+def remover_fundo_branco(img_pil):
     """
-    Remove pixels brancos/quase-brancos tornando-os transparentes.
-    Preserva TODOS os elementos do produto, incluindo correntes finas.
+    Remove fundo branco usando flood-fill a partir das bordas.
     
-    Parametros:
-      limiar    - pixels com R,G,B >= limiar serao removidos (0-255)
-      suavidade - raio do filtro de borda para evitar serrilhado
+    Diferente de remover TODOS os pixels brancos, esta funcao
+    remove apenas os pixels brancos que estao CONECTADOS a borda
+    da imagem (ou seja, o fundo real). Pixels brancos dentro do
+    produto (reflexos, brilhos, metal) sao preservados.
     """
     img_rgba = img_pil.convert("RGBA")
-    dados = np.array(img_rgba, dtype=np.uint8)
+    img_hsv = img_pil.convert("HSV")
 
-    r, g, b = dados[:, :, 0], dados[:, :, 1], dados[:, :, 2]
+    dados_rgba = np.array(img_rgba, dtype=np.uint8)
+    dados_hsv = np.array(img_hsv, dtype=np.uint8)
+    h, w = dados_hsv.shape[:2]
 
-    # Calcula "distancia do branco" para cada pixel
-    distancia_do_branco = (
-        (255 - r.astype(np.int32)) ** 2 +
-        (255 - g.astype(np.int32)) ** 2 +
-        (255 - b.astype(np.int32)) ** 2
-    )
+    s = dados_hsv[:, :, 1]
+    v = dados_hsv[:, :, 2]
 
-    # Threshold quadratico: limiar=240 corresponde a distancia^2 ~ 1875
-    threshold_quadratico = ((255 - limiar) ** 2) * 3
-    mascara_branca = distancia_do_branco <= threshold_quadratico
+    # Mascara de pixels "brancos" candidatos (MUITO mais rígida)
+    # Background de estúdio costuma ser 255 ou muito perto disso.
+    # A alça da bolsa, embora clara, tem textura e cor que a impedem de ser 255 puro.
+    candidatos = (v >= 252) & (s <= 8)
 
-    # Aplica transparencia nos pixels brancos
-    dados[mascara_branca, 3] = 0
+    # Flood-fill: marca apenas os pixels brancos conectados as bordas
+    from collections import deque
 
-    resultado = Image.fromarray(dados, "RGBA")
+    visitado = np.zeros((h, w), dtype=bool)
+    fundo = np.zeros((h, w), dtype=bool)
+    fila = deque()
 
-    # Suaviza as bordas para evitar serrilhado
-    if suavidade > 0:
-        alpha = resultado.split()[3]
-        alpha_suave = alpha.filter(ImageFilter.GaussianBlur(radius=suavidade / 2))
-        resultado.putalpha(alpha_suave)
+    # Semeia a fila com todos os pixels das 4 bordas que sao brancos
+    for x in range(w):
+        if candidatos[0, x] and not visitado[0, x]:
+            fila.append((0, x))
+            visitado[0, x] = True
+        if candidatos[h-1, x] and not visitado[h-1, x]:
+            fila.append((h-1, x))
+            visitado[h-1, x] = True
 
-    return resultado
+    for y in range(h):
+        if candidatos[y, 0] and not visitado[y, 0]:
+            fila.append((y, 0))
+            visitado[y, 0] = True
+        if candidatos[y, w-1] and not visitado[y, w-1]:
+            fila.append((y, w-1))
+            visitado[y, w-1] = True
+
+    # BFS: expande para pixels brancos vizinhos conectados
+    while fila:
+        cy, cx = fila.popleft()
+        fundo[cy, cx] = True
+
+        for dy, dx in [(-1,0),(1,0),(0,-1),(0,1)]:
+            ny, nx = cy + dy, cx + dx
+            if 0 <= ny < h and 0 <= nx < w and not visitado[ny, nx] and candidatos[ny, nx]:
+                visitado[ny, nx] = True
+                fila.append((ny, nx))
+
+    # Aplica transparencia apenas no fundo conectado as bordas
+    dados_rgba[fundo, 3] = 0
+
+    return Image.fromarray(dados_rgba, "RGBA")
 
 
 def remover_fundo_ia(dados_entrada):
@@ -146,7 +172,7 @@ def remover_fundo():
         if eh_fundo_branco:
             # Fundo branco: remocao por cor (preserva correntes e elementos finos)
             print(f"[PROC] Fundo branco detectado -> usando remocao por cor")
-            resultado = remover_fundo_branco(img, limiar=240, suavidade=3)
+            resultado = remover_fundo_branco(img)
         else:
             # Fundo complexo: usa IA
             print(f"[PROC] Fundo complexo detectado -> usando IA (rembg)")
