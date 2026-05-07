@@ -143,6 +143,57 @@
         }
 
         .btn-download:hover { background: #1d4ed8; }
+
+        .batch-actions {
+            display: none;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 30px;
+            animation: fadeIn 0.5s ease;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .btn-batch {
+            padding: 12px 24px;
+            background: #059669;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-weight: 700;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px rgba(5, 150, 105, 0.2);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-batch:hover {
+            background: #047857;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(5, 150, 105, 0.3);
+        }
+
+        .btn-clear {
+            padding: 12px 24px;
+            background: white;
+            color: #dc2626;
+            border: 2px solid #fee2e2;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-clear:hover {
+            background: #fef2f2;
+            border-color: #fecaca;
+            color: #b91c1c;
+        }
     </style>
 </head>
 
@@ -155,6 +206,14 @@
     <input type="file" id="file-input" multiple hidden accept="image/*">
 
     <div id="status-ia">Pronto! Arraste uma imagem para remover o fundo.</div>
+
+    <div class="batch-actions" id="batch-actions">
+        <button class="btn-batch" onclick="baixarTudo()">
+            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="TargetContent: "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+            Baixar Todas (ZIP)
+        </button>
+        <button class="btn-clear" onclick="limparGaleria()">Limpar Tudo</button>
+    </div>
 
     <div class="batch-preview" id="preview-area"></div>
 
@@ -241,9 +300,11 @@
                 btnEl.href = urlSemFundo;
                 btnEl.style.display = 'block';
 
-                statusDiv.innerText = '"' + arquivo.name + '" processado! Clique em "Baixar PNG" para salvar.';
                 statusDiv.style.backgroundColor = '#d1fae5';
                 statusDiv.style.color = '#065f46';
+
+                // Mostra os botoes de lote se houver sucesso
+                document.getElementById('batch-actions').style.display = 'flex';
 
             } catch (erro) {
                 console.error('Erro:', erro);
@@ -260,6 +321,28 @@
                 statusDiv.innerText = msg;
                 statusDiv.style.backgroundColor = '#fee2e2';
                 statusDiv.style.color = '#991b1b';
+            }
+        }
+
+        function baixarTudo() {
+            window.location.href = `${SERVIDOR}/baixar-zip`;
+        }
+
+        async function limparGaleria() {
+            if (!confirm('Deseja realmente limpar todas as imagens?')) return;
+
+            try {
+                const resp = await fetch(`${SERVIDOR}/limpar`, { method: 'POST' });
+                if (resp.ok) {
+                    previewArea.innerHTML = '';
+                    document.getElementById('batch-actions').style.display = 'none';
+                    statusDiv.innerText = 'Galeria limpa! Pronto para novas imagens.';
+                    statusDiv.style.backgroundColor = '#d1fae5';
+                    statusDiv.style.color = '#065f46';
+                }
+            } catch (e) {
+                console.error('Erro ao limpar:', e);
+                alert('Erro ao limpar galeria no servidor.');
             }
         }
     </script>
