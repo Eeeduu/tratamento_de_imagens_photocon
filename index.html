@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Editor de Imagens IA - Remoção de Fundo</title>
+    <meta name="description" content="Remove o fundo de imagens com IA local — sem internet.">
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', 'Segoe UI', sans-serif;
+            padding: 30px 20px;
+            max-width: 900px;
+            margin: auto;
+            background: linear-gradient(135deg, #f0f4ff 0%, #f9fafb 100%);
+            min-height: 100vh;
+        }
+
+        h1 {
+            color: #1e293b;
+            text-align: center;
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #64748b;
+            font-size: 0.9rem;
+            margin-bottom: 28px;
+        }
+
+        #drop-zone {
+            width: 100%;
+            height: 170px;
+            border: 2px dashed #4A90E2;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(239, 246, 255, 0.85);
+            cursor: pointer;
+            border-radius: 14px;
+            margin-bottom: 16px;
+            color: #4A90E2;
+            font-weight: 600;
+            font-size: 1rem;
+            transition: all 0.25s ease;
+            user-select: none;
+        }
+
+        #drop-zone:hover, #drop-zone.drag-over {
+            background: #dbeafe;
+            border-color: #2563eb;
+            color: #2563eb;
+            transform: scale(1.01);
+        }
+
+        #status-ia {
+            text-align: center;
+            margin-bottom: 20px;
+            font-weight: 600;
+            padding: 14px 20px;
+            border-radius: 10px;
+            background: #d1fae5;
+            color: #065f46;
+            font-size: 0.92rem;
+            transition: all 0.3s ease;
+        }
+
+        .batch-preview {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .card-imagem {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            background: white;
+            border-radius: 14px;
+            padding: 14px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.07);
+        }
+
+        .card-titulo {
+            font-size: 0.8rem;
+            color: #64748b;
+            font-weight: 600;
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .thumb {
+            width: 220px;
+            height: 220px;
+            object-fit: contain;
+            border-radius: 10px;
+            border: 1px solid #e2e8f0;
+            background-image:
+                linear-gradient(45deg, #f1f5f9 25%, transparent 25%),
+                linear-gradient(-45deg, #f1f5f9 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #f1f5f9 75%),
+                linear-gradient(-45deg, transparent 75%, #f1f5f9 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+            background-color: #fff;
+            transition: opacity 0.4s ease;
+        }
+
+        .spinner {
+            width: 36px;
+            height: 36px;
+            border: 4px solid #e0e7ff;
+            border-top-color: #4A90E2;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .btn-download {
+            display: none;
+            padding: 9px 20px;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background 0.2s ease;
+        }
+
+        .btn-download:hover { background: #1d4ed8; }
+    </style>
+</head>
+
+<body>
+
+    <h1>Editor de Imagens IA</h1>
+    <p class="subtitle">Remocao de fundo com IA local &mdash; sem internet, com alta qualidade</p>
+
+    <div id="drop-zone">Arraste suas imagens aqui ou clique para selecionar</div>
+    <input type="file" id="file-input" multiple hidden accept="image/*">
+
+    <div id="status-ia">Pronto! Arraste uma imagem para remover o fundo.</div>
+
+    <div class="batch-preview" id="preview-area"></div>
+
+    <script>
+        const SERVIDOR = 'http://localhost:5001';
+        const statusDiv = document.getElementById('status-ia');
+        const dropZone  = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const previewArea = document.getElementById('preview-area');
+
+        dropZone.onclick = () => fileInput.click();
+        dropZone.ondragover  = (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); };
+        dropZone.ondragleave = () => dropZone.classList.remove('drag-over');
+        dropZone.ondrop = (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            handleFiles(e.dataTransfer.files);
+        };
+        fileInput.onchange = (e) => handleFiles(e.target.files);
+
+        function handleFiles(files) {
+            for (let file of files) {
+                if (!file.type.startsWith('image/')) continue;
+                criarCard(file);
+            }
+        }
+
+        function criarCard(file) {
+            const card = document.createElement('div');
+            card.className = 'card-imagem';
+
+            const titulo = document.createElement('div');
+            titulo.className = 'card-titulo';
+            titulo.innerText = file.name;
+
+            const img = document.createElement('img');
+            img.src = URL.createObjectURL(file);
+            img.className = 'thumb';
+            img.style.opacity = '0.35';
+
+            const spinner = document.createElement('div');
+            spinner.className = 'spinner';
+
+            const btn = document.createElement('a');
+            btn.className = 'btn-download';
+            btn.innerText = 'Baixar PNG';
+            btn.download = file.name.replace(/\.[^.]+$/, '') + '_sem_fundo.png';
+
+            card.appendChild(titulo);
+            card.appendChild(img);
+            card.appendChild(spinner);
+            card.appendChild(btn);
+            previewArea.appendChild(card);
+
+            processarImagem(file, img, spinner, btn);
+        }
+
+        async function processarImagem(arquivo, imgEl, spinnerEl, btnEl) {
+            statusDiv.innerText = 'Processando "' + arquivo.name + '"... (pode levar alguns segundos)';
+            statusDiv.style.backgroundColor = '#fef3c7';
+            statusDiv.style.color = '#92400e';
+
+            try {
+                const formData = new FormData();
+                formData.append('imagem', arquivo);
+
+                const resposta = await fetch(`${SERVIDOR}/remover-fundo`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!resposta.ok) {
+                    const erro = await resposta.json();
+                    throw new Error(erro.erro || `HTTP ${resposta.status}`);
+                }
+
+                const blob = await resposta.blob();
+                const urlSemFundo = URL.createObjectURL(blob);
+
+                imgEl.src = urlSemFundo;
+                imgEl.style.opacity = '1';
+                spinnerEl.remove();
+
+                btnEl.href = urlSemFundo;
+                btnEl.style.display = 'block';
+
+                statusDiv.innerText = '"' + arquivo.name + '" processado! Clique em "Baixar PNG" para salvar.';
+                statusDiv.style.backgroundColor = '#d1fae5';
+                statusDiv.style.color = '#065f46';
+
+            } catch (erro) {
+                console.error('Erro:', erro);
+                spinnerEl.remove();
+                imgEl.style.opacity = '1';
+
+                let msg = 'Falha no processamento.';
+                if (erro.message && (erro.message.includes('fetch') || erro.message.includes('Failed'))) {
+                    msg = 'Servidor local nao encontrado. Certifique-se de que o "servidor_ia.py" esta rodando (python servidor_ia.py).';
+                } else if (erro.message) {
+                    msg = 'Erro: ' + erro.message;
+                }
+
+                statusDiv.innerText = msg;
+                statusDiv.style.backgroundColor = '#fee2e2';
+                statusDiv.style.color = '#991b1b';
+            }
+        }
+    </script>
+
+</body>
+</html>
